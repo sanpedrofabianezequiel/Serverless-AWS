@@ -6,6 +6,8 @@ import httpErrorHandler from "@middy/http-error-handler";
 import httpEventNormalizer from "@middy/http-event-normalizer";
 import createError from "http-errors";
 import getAuctionById from "./getAuction";
+import validator from '@middy/validator'
+import placeBidSchema  from '../lib/schemas/placeBidSchema'
 
 const dynamoDb = new AWS.DynamoDB.DocumentClient();
 
@@ -13,6 +15,10 @@ async function placeBid(event, context) {
   const { id } = event.pathParameters
   const { amount } = event.body;
   const auction = await getAuctionById(id);
+ 
+  if (auction.status !== "OPEN") {
+    throw new createError.Forbidden("Auction is not open");
+  }
 
   if(amount <= auction.highestBid.amount) {
     throw new createError.BadRequest(`Bid must be higher than current bid`);
@@ -42,4 +48,4 @@ async function placeBid(event, context) {
     body: JSON.stringify(updateAuction),
   };
 }
-export const handler = middy(placeBid).use(httpJsonBodyParser()).use(httpEventNormalizer()).use(httpErrorHandler());
+export const handler = middy(placeBid).use(httpJsonBodyParser()).use(httpEventNormalizer()).use(httpErrorHandler()).use(validator({inputSchema: placeBidSchema}));

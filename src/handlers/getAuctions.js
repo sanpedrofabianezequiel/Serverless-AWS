@@ -5,14 +5,27 @@ import httpJsonBodyParser from "@middy/http-json-body-parser";
 import httpErrorHandler from "@middy/http-error-handler";
 import httpEventNormalizer from "@middy/http-event-normalizer";
 import createError from "http-errors";
+import validator  from '@middy/validator'
+import getAuctionsSchema from '../lib/schemas/getAuctionsSchema';
 
 const dynamoDb = new AWS.DynamoDB.DocumentClient();
 
 async function getAuctions(event, context) {
   let auctions;
-
+  const  {status} = event.queryStringParameters;
+  const params = {
+    TableName: process.env.AUCTIONS_TABLE_NAME,
+    IndexName: "statusAndEndDate",
+    KeyConditionExpression: "#status = :status",
+    ExpressionAttributeValues: {
+      ":status": status,
+    },
+    ExpressionAttributeNames: {
+      "#status": "status",
+    }
+  }
   try {
-    const result = await dynamoDb.scan({TableName: process.env.AUCTIONS_TABLE_NAME}).promise();
+    const result = await dynamoDb.query(params).promise();
     auctions = result.Items;
     return {
       statusCode: 200,
@@ -24,4 +37,5 @@ async function getAuctions(event, context) {
   }
 }
 
-export const handler = middy(getAuctions).use(httpJsonBodyParser()).use(httpEventNormalizer()).use(httpErrorHandler());
+export const handler = middy(getAuctions).use(httpJsonBodyParser()).use(httpEventNormalizer()).use(httpErrorHandler())
+                        .use(validator({inputSchema: getAuctionsSchema,useDefaults: true}));
